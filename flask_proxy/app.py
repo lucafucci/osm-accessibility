@@ -31,3 +31,6 @@ def get_accessibility_geojson():
     }
     response = requests.get(GEOJSON_URL, headers=headers)
     return jsonify(response.json())
+
+if __name__ == '__main__':
+    app.run(debug=True,port=5000)

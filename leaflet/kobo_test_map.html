@@ -76,7 +76,7 @@
 
         var blueIcon = createSvgIcon('#6699cc');
 
-        var GEOJSON_PROXY_URL = 'https://funkylook.pythonanywhere.com/accessibility';
+        var GEOJSON_PROXY_URL = 'https://funkylook.pythonanywhere.com/data?include_attachments=false&asset_id=ahE3SdWtGpcDgcSD7HoHFr'; //'https://funkylook.pythonanywhere.com/test';
 
         fetch(GEOJSON_PROXY_URL)
         .then(response => response.json())
