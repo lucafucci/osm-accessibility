@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OSM Data on Leaflet Map with Reload</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; }
+        .reload-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <button class="reload-button" onclick="reloadData()">Reload Data</button>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([45.464211, 9.191383], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var overpassApiUrl = 'https://overpass-api.de/api/interpreter';
+
+        function fetchData(bounds) {
+            var query = `
+            [out:json][timeout:25];
+            (
+                node["wheelchair"="yes"](${bounds.getSouthWest().lat},${bounds.getSouthWest().lng},${bounds.getNorthEast().lat},${bounds.getNorthEast().lng});
+            );
+            out body;
+            `;
+            
+            fetch(overpassApiUrl, {
+                method: 'POST',
+                body: 'data=' + encodeURIComponent(query),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                data.elements.forEach(element => {
+                    var marker = L.marker([element.lat, element.lon]).addTo(map);
+                    marker.bindPopup(`<b>Cafe:</b> ${element.tags.name || 'Unknown'}`);
+                });
+            })
+            .catch(error => console.log('Error fetching or processing data', error));
+        }
+
+        function reloadData() {
+            map.eachLayer(function(layer) {
+                if (!!layer.toGeoJSON) {
+                    map.removeLayer(layer);
+                }
+            });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            fetchData(map.getBounds());
+        }
+
+        // Initial data load
+        fetchData(map.getBounds());
+
+    </script>
+</body>
+</html>

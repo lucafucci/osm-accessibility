@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OSM Data on Leaflet Map with Reload, Marker Clustering, Geolocation, and Address Search</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Previene le barre di scorrimento globali */
+            height: 100%; /* Forza l'intero documento ad avere un'altezza completa */
+        }
+        
+        #sidebar {
+            width: 200px; /* Larghezza fissa per il sidebar */
+            height: 100vh; /* 100% dell'altezza della viewport */
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1000; /* Assicura che il sidebar stia sopra la mappa */
+            background: white;
+            padding: 10px;
+            overflow-y: auto; /* Mostra una barra di scorrimento se il contenuto eccede l'altezza della viewport */
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1); /* Opzionale: aggiunge un'ombra per un effetto di profondità */
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            left: 200px; /* Imposta la mappa per iniziare dove finisce il sidebar */
+            right: 0;
+            bottom: 0;
+            margin-left:20px;
+        }
+        .reload-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #search-container {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        #search-input, button {
+            font-family: 'Arial', sans-serif; /* Scegli un font che preferisci */
+        }
+        
+        #search-results {
+            position: absolute;
+            width: 300px; /* Limita la larghezza dei risultati */
+            max-height: 300px;
+            overflow-y: auto;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.2);
+            margin-top: 5px;
+        }
+        
+        .search-result {
+            padding: 10px;
+            cursor: pointer;
+            text-align: left;
+            font-family: 'Arial', sans-serif; /* Assicurati che il font sia coerente */
+        }
+        
+        .search-result:hover {
+            background-color: #f0f0f0;
+        }
+        #search-input, button, .search-result {
+            font-family: 'Roboto', sans-serif;
+        }
+        .marker-cluster-green {
+            background-color: #83c672;
+            color: #000;
+            border: 1px solid #8dcc8d;
+        }
+        
+        .marker-cluster-green div {
+            background-color: #83d183;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Cerca indirizzo o luogo...">
+        <button onclick="searchLocation()">Cerca</button>
+        <div id="search-results"></div> <!-- Contenitore per i risultati della ricerca -->
+    </div>
+
+    <div id="sidebar" style="width: 200px; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1000; background: white; padding: 10px; overflow-y: auto;">
+        <h4>Layer della Mappa</h4>
+        <div>
+            <input type="checkbox" id="layer1" checked>
+            <label for="layer1">Layer 1</label>
+        </div>
+        <div>
+            <input type="checkbox" id="layer2">
+            <label for="layer2">Layer 2</label>
+        </div>
+        <!-- Aggiungi qui altri layer -->
+    </div>
+    <div id="map" style="position: absolute; top: 0; left: 200px; right: 0; bottom: 0;"></div>
+
+
+    <button class="reload-button" onclick="reloadData()">Reload Data</button>
+
+
+
+
+
+
+
+
+
+
+    
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    
+    <script>
+        var map = L.map('map');
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var geocoder = L.Control.geocoder({
+            defaultMarkGeocode: false
+        }).addTo(map);
+
+        
+
+        var selectedAreaPolygon = null; // Riferimento globale al poligono dell'area selezionata
+
+        geocoder.on('markgeocode', function(e) {
+            // Rimuovi il poligono esistente, se presente
+            if (selectedAreaPolygon) {
+                map.removeLayer(selectedAreaPolygon);
+                selectedAreaPolygon = null; // Resetta il riferimento
+            }
+        
+            var bbox = e.geocode.bbox;
+            /*
+            selectedAreaPolygon = L.polygon([
+                bbox.getSouthEast(),
+                bbox.getNorthEast(),
+                bbox.getNorthWest(),
+                bbox.getSouthWest()
+            ]).addTo(map);
+            map.fitBounds(selectedAreaPolygon.getBounds());
+            */
+            map.fitBounds([
+                bbox.getSouthEast(),
+                bbox.getNorthWest()
+            ]);
+    
+            markerCluster.clearLayers();
+            fetchData(map.getBounds());
+            
+            reloadData();
+        });
+
+
+        var overpassApiUrl = 'https://overpass-api.de/api/interpreter';
+
+        //var markerCluster = L.markerClusterGroup();
+        //map.addLayer(markerCluster);
+
+        
+        var markerCluster = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                return L.divIcon({
+                    html: '<div><span>' + cluster.getChildCount() + '</span></div>',
+                    className: 'marker-cluster marker-cluster-small', // Usa la classe personalizzata
+                    iconSize: L.point(40, 40)
+                });
+            }
+        });
+        map.addLayer(markerCluster);
+
+        map.on('locationfound', function(e) {
+            map.setView(e.latlng, 13);
+            fetchData(map.getBounds());
+        });
+
+        map.on('locationerror', function(e) {
+            alert("Location access denied.");
+            map.setView([45.464211, 9.191383], 13); // Default view
+            fetchData(map.getBounds());
+        });
+
+        map.locate({setView: true, maxZoom: 16});
+
+        function fetchData(bounds) {
+            var query = `
+            [out:json][timeout:25];
+            (
+                node["wheelchair"="yes"](${bounds.getSouthWest().lat},${bounds.getSouthWest().lng},${bounds.getNorthEast().lat},${bounds.getNorthEast().lng});
+            );
+            out body 100;
+            `;
+            
+            fetch(overpassApiUrl, {
+                method: 'POST',
+                body: 'data=' + encodeURIComponent(query),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                markerCluster.clearLayers(); // Pulisce i marker esistenti prima di aggiungere quelli nuovi
+                data.elements.forEach(element => {
+                    var lat = element.lat;
+                    var lon = element.lon;
+                    var popupContent = "";
+        
+                    // Itera sui tag dell'elemento per costruire il contenuto del popup
+                    for (var tag in element.tags) {
+                        popupContent += `<strong>${tag}:</strong> ${element.tags[tag]}<br>`;
+                    }
+        
+                    // Crea un marker per ogni elemento e aggiungi un popup con i dettagli
+                    var marker = L.marker([lat, lon]).addTo(markerCluster); // Aggiungi il marker al cluster invece che direttamente alla mappa
+                    marker.bindPopup(popupContent);
+                });
+            })
+            .catch(error => console.log('Error fetching or processing data', error));
+        }
+
+        function reloadData() {
+            // Rimuove tutti i marker dal gruppo di cluster prima di ricaricare i dati
+
+            var bounds = map.getBounds();
+            var area = bounds.getNorthEast().distanceTo(bounds.getSouthWest());
+        
+            /*
+            // Limite di area, es. 50km x 50km (2500 km²)
+            if (area > 100000) {
+                alert("L'area selezionata è troppo grande. Per favore, riduci lo zoom e riprova.");
+                return;
+            }
+            */
+            markerCluster.clearLayers();
+            fetchData(bounds);
+        
+            
+        }
+
+        fetchData(map.getBounds());
+    
+        
+        document.getElementById("search-input").addEventListener("keypress", function(event) {
+            if (event.keyCode === 13) { // 13 è il keyCode per il tasto "Invio"
+                event.preventDefault(); // Previene il comportamento predefinito dell'evento "Invio"
+                searchLocation(); // Chiama la funzione di ricerca
+            }
+        });
+
+
+        function searchLocation() {
+            var input = document.getElementById("search-input").value;
+            var resultsContainer = document.getElementById("search-results");
+            resultsContainer.innerHTML = ''; // Pulisce i risultati precedenti
+        
+            if (!input.trim()) return;
+        
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`;
+        
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    data.forEach(result => {
+                        var resultElement = document.createElement("div");
+                        resultElement.classList.add("search-result");
+                        resultElement.textContent = result.display_name;
+                        resultElement.onclick = function() {
+                            map.setView([result.lat, result.lon], 15);
+                            L.marker([result.lat, result.lon]).addTo(map)
+                              .bindPopup(result.display_name)
+                              .openPopup();
+                            resultsContainer.innerHTML = ''; // Pulisce i risultati dopo la selezione
+                        };
+                        resultsContainer.appendChild(resultElement);
+                    });
+                } else {
+                    resultsContainer.innerHTML = '<div class="search-result">Nessun risultato trovato.</div>';
+                }
+            })
+            .catch(error => console.error('Errore nel recupero dei dati: ', error));
+        }
+        
+
+
+        var layer1 = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        });
+        
+        var layer2 = L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.{ext}', {
+            attribution: 'Map tiles by Stamen Design, under CC BY 3.0. Data by OpenStreetMap, under ODbL.',
+            subdomains: 'abcd',
+            minZoom: 1,
+            maxZoom: 16,
+            ext: 'jpg'
+        });
+        
+        var map = L.map('map', {
+            center: [40.712776, -74.005974],
+            zoom: 13,
+            layers: [layer1] // Layer iniziale
+        });
+
+
+        document.getElementById('layer1').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                map.addLayer(layer1);
+            } else {
+                map.removeLayer(layer1);
+            }
+        });
+        
+        document.getElementById('layer2').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                map.addLayer(layer2);
+            } else {
+                map.removeLayer(layer2);
+            }
+        });
+        
+    </script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf8" />
+		<meta name="viewport" content="width=device-width" />
+
+		<title>SurveyJS Standalone</title>
+
+		<link rel="stylesheet" href="https://unpkg.com/survey-standalone/dist/survey-standalone.css" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+	</head>
+
+	<body>
+		<script src="https://unpkg.com/survey-standalone/dist/survey-standalone.min.js"></script>
+    
+		<div id="surveyElement"></div>
+		<div id="surveyResultElement"></div>
+
+		<script>
+
+
+            function initMap() {
+                var map = L.map('map').setView([51.505, -0.09], 13);
+            
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            
+                var marker;
+            
+                map.on('click', function(e) {
+                    if (marker) {
+                        map.removeLayer(marker);
+                    }
+                    marker = L.marker(e.latlng).addTo(map);
+                    // Salva le coordinate del marker o esegui altre azioni
+                });
+            }
+            
+            // Funzione di callback dopo il rendering del survey
+            function onSurveyRendered() {
+                initMap();
+            }
+
+            
+			Survey.StylesManager.applyTheme('modern');
+
+			var json = {
+				title: 'Survey standalone example !',
+				pages: [
+					{
+						questions: [
+							{
+								type: 'radiogroup',
+								name: 'car',
+								title: 'What car are you driving?',
+								isRequired: true,
+								hasOther: true,
+								colCount: 4,
+								choices: [
+									'None',
+									'Ford',
+									'Vauxhall',
+									'Volkswagen',
+									'Nissan',
+									'Audi',
+									'Mercedes-Benz',
+									'BMW',
+									'Peugeot',
+									'Toyota',
+									'Citroen',
+								],
+							},
+						],
+					}
+				],
+			};
+
+			var targetNode = document.querySelector('#surveyElement');
+			window.survey = new Survey.Survey(json);
+
+			survey.showProgressBar = 'top';
+
+			survey.render(targetNode);
+		</script>
+	</body>
+</html>

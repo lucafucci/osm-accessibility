@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Survey con Mappa Leaflet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/survey-jquery/1.8.68/survey.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        #map { height: 300px; }
+    </style>
+</head>
+<body>
+
+<div id="surveyContainer"></div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/survey-jquery/1.8.68/survey.jquery.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="survey-map.js"></script>
+
+</body>
+</html>
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Form con Mappa</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+    <div id="surveyElement" style="display:inline-block;width:100%;"></div>
+    <div id="surveyResult"></div>
+</body>
+<script>
+    // Inizializzazione di SurveyJS
+var surveyJSON = {
+    questions: [
+        {
+            type: "html",
+            name: "mappa",
+            html: "<div id='map' style='height: 400px;'></div>"
+        }
+        // Aggiungi qui altre domande se necessario
+    ]
+};
+$(document).ready(function(){
+    var map = L.map('map').setView([51.505, -0.09], 13);
+    // resto del codice per configurare la mappa
+});
+// Funzione per inizializzare la mappa Leaflet
+function initMap() {
+    var map = L.map('map').setView([51.505, -0.09], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var marker;
+
+    map.on('click', function(e) {
+        if (marker) {
+            map.removeLayer(marker);
+        }
+        marker = L.marker(e.latlng).addTo(map);
+        // Salva le coordinate del marker o esegui altre azioni
+    });
+}
+
+// Funzione di callback dopo il rendering del survey
+function onSurveyRendered() {
+    initMap();
+}
+
+// Inizializzazione e rendering del survey
+var survey = new Survey.Model(surveyJSON);
+$("#surveyElement").Survey({ 
+    model: survey,
+    onComplete: sendDataToServer,
+    onAfterRenderSurvey: onSurveyRendered
+});
+
+// Funzione per gestire il completamento del survey
+function sendDataToServer(survey) {
+    var resultAsString = JSON.stringify(survey.data);
+    // invia resultAsString al tuo server
+    console.log(resultAsString);
+}
+
+
+</script> <!-- Il tuo file JavaScript che segue -->
+
+</html>
