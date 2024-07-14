@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OSM Data on Leaflet Map with Accessibility Layers</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            font-family: 'Nunito', sans-serif;
+        }
+        
+        #sidebar {
+            width: 200px;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            left: 200px;
+            right: 0;
+            bottom: 0;
+            margin-left:20px;
+        }
+        
+        .reload-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: 'Nunito', sans-serif;
+        }
+        
+        #search-container {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        #search-input, button {
+            font-family: 'Nunito', sans-serif;
+        }
+        
+        #search-results {
+            position: absolute;
+            width: 300px;
+            max-height: 300px;
+            overflow-y: auto;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.2);
+            margin-top: 5px;
+        }
+        
+        .search-result {
+            padding: 10px;
+            cursor: pointer;
+            text-align: left;
+            font-family: 'Nunito', sans-serif;
+        }
+        
+        .search-result:hover {
+            background-color: #f0f0f0;
+        }
+        
+        #search-input, button, .search-result {
+            font-family: 'Nunito', sans-serif;
+        }
+        
+        .marker-cluster-small {
+            background-color: #fff;
+            color: #000;
+            border: 1px solid #ddd;
+        }
+        
+        .marker-cluster-green {
+            background-color: #88b388;
+            color: #000;
+            border: 1px solid #99c199;
+        }
+        
+        .marker-cluster-green div {
+            background-color: #a3c2a3;
+        }
+        
+        .marker-cluster-yellow {
+            background-color: #d9c773;
+            color: #000;
+            border: 1px solid #e0d18d;
+        }
+        
+        .marker-cluster-yellow div {
+            background-color: #e6d8a3;
+        }
+        
+        .marker-cluster-red {
+            background-color: #d97d7d;
+            color: #000;
+            border: 1px solid #e08d8d;
+        }
+        
+        .marker-cluster-red div {
+            background-color: #e6a3a3;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Cerca indirizzo o luogo...">
+        <button onclick="searchLocation()">Cerca</button>
+        <div id="search-results"></div>
+    </div>
+
+    <div id="sidebar">
+        <h4>Layer della Mappa</h4>
+        <div>
+            <input type="checkbox" id="layer1" checked>
+            <label for="layer1">Accessibile</label>
+        </div>
+        <div>
+            <input type="checkbox" id="layer2" checked>
+            <label for="layer2">Parzialmente Accessibile</label>
+        </div>
+        <div>
+            <input type="checkbox" id="layer3" checked>
+            <label for="layer3">Non Accessibile</label>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <button class="reload-button" onclick="reloadData()">Reload Data</button>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <script>
+        var map = L.map('map').setView([45.464211, 9.191383], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var geocoder = L.Control.geocoder({
+            defaultMarkGeocode: false
+        }).addTo(map);
+
+        var markerClusterAccessible = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                return L.divIcon({
+                    html: '<div><span>' + cluster.getChildCount() + '</span></div>',
+                    className: 'marker-cluster marker-cluster-green',
+                    iconSize: L.point(40, 40)
+                });
+            }
+        });
+
+        var markerClusterPartiallyAccessible = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                return L.divIcon({
+                    html: '<div><span>' + cluster.getChildCount() + '</span></div>',
+                    className: 'marker-cluster marker-cluster-yellow',
+                    iconSize: L.point(40, 40)
+                });
+            }
+        });
+
+        var markerClusterNotAccessible = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                return L.divIcon({
+                    html: '<div><span>' + cluster.getChildCount() + '</span></div>',
+                    className: 'marker-cluster marker-cluster-red',
+                    iconSize: L.point(40, 40)
+                });
+            }
+        });
+
+        map.addLayer(markerClusterAccessible);
+        map.addLayer(markerClusterPartiallyAccessible);
+        map.addLayer(markerClusterNotAccessible);
+
+        geocoder.on('markgeocode', function(e) {
+            var bbox = e.geocode.bbox;
+            map.fitBounds([
+                bbox.getSouthEast(),
+                bbox.getNorthWest()
+            ]);
+            reloadData();
+        });
+
+        map.locate({setView: true, maxZoom: 16});
+
+        map.on('locationfound', function(e) {
+            map.setView(e.latlng, 13);
+            reloadData();
+        });
+
+        map.on('locationerror', function(e) {
+            alert("Location access denied.");
+        });
+
+        function createSvgIcon(color) {
+            return L.divIcon({
+                html: `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="10" fill="${color}" /></svg>`,
+                className: ''
+            });
+        }
+
+        var greenIcon = createSvgIcon('#88b388');
+        var yellowIcon = createSvgIcon('#d9c773');
+        var redIcon = createSvgIcon('#d97d7d');
+
+        var mapillaryToken = 'MLY|7717967788302964|a7ba980b29ff82c24ba19f12d872da0d'; // Inserisci il tuo token Mapillary qui
+
+        function fetchData(bounds, wheelchair, clusterGroup, icon) {
+            var query = `
+                [out:json][timeout:25];
+                (
+                    node["wheelchair"="${wheelchair}"](${bounds.getSouthWest().lat},${bounds.getSouthWest().lng},${bounds.getNorthEast().lat},${bounds.getNorthEast().lng});
+                );
+                out body 100;
+            `;
+
+            fetch('https://overpass-api.de/api/interpreter', {
+                method: 'POST',
+                body: 'data=' + encodeURIComponent(query),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                clusterGroup.clearLayers();
+                data.elements.forEach(element => {
+                    var lat = element.lat;
+                    var lon = element.lon;
+                    var popupContent = "";
+                    for (var tag in element.tags) {
+                        popupContent += `<strong>${tag}:</strong> ${element.tags[tag]}<br>`;
+                    }
+
+                    if (element.tags.mapillary) {
+                        var mapillaryId = element.tags.mapillary;
+                        fetch(`https://graph.mapillary.com/${mapillaryId}?fields=thumb_2048_url&access_token=${mapillaryToken}`)
+                        .then(response => response.json())
+                        .then(mapillaryData => {
+                            var imageUrl = mapillaryData.thumb_2048_url;
+                            popupContent += `<img src="${imageUrl}" alt="Mapillary Image" style="max-width: 100%; margin-top: 5px;"><br>`;
+                            var marker = L.marker([lat, lon], {icon: icon}).addTo(clusterGroup);
+                            marker.bindPopup(popupContent);
+                        })
+                        .catch(error => {
+                            console.log('Error fetching Mapillary image:', error);
+                            var marker = L.marker([lat, lon], {icon: icon}).addTo(clusterGroup);
+                            marker.bindPopup(popupContent);
+                        });
+                    } else {
+                        var marker = L.marker([lat, lon], {icon: icon}).addTo(clusterGroup);
+                        marker.bindPopup(popupContent);
+                    }
+                });
+            })
+            .catch(error => console.log('Error fetching or processing data', error));
+        }
+
+        function reloadData() {
+            var bounds = map.getBounds();
+            fetchData(bounds, 'yes', markerClusterAccessible, greenIcon);
+            fetchData(bounds, 'limited', markerClusterPartiallyAccessible, yellowIcon);
+            fetchData(bounds, 'no', markerClusterNotAccessible, redIcon);
+        }
+
+        document.getElementById('layer1').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                map.addLayer(markerClusterAccessible);
+            } else {
+                map.removeLayer(markerClusterAccessible);
+            }
+        });
+
+        document.getElementById('layer2').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                map.addLayer(markerClusterPartiallyAccessible);
+            } else {
+                map.removeLayer(markerClusterPartiallyAccessible);
+            }
+        });
+
+        document.getElementById('layer3').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                map.addLayer(markerClusterNotAccessible);
+            } else {
+                map.removeLayer(markerClusterNotAccessible);
+            }
+        });
+
+        reloadData();
+
+        document.getElementById("search-input").addEventListener("keypress", function(event) {
+            if (event.keyCode === 13) {
+                event.preventDefault();
+                searchLocation();
+            }
+        });
+
+        function searchLocation() {
+            var input = document.getElementById("search-input").value;
+            var resultsContainer = document.getElementById("search-results");
+            resultsContainer.innerHTML = '';
+        
+            if (!input.trim()) return;
+        
+            var url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`;
+        
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    data.forEach(result => {
+                        var resultElement = document.createElement("div");
+                        resultElement.classList.add("search-result");
+                        resultElement.textContent = result.display_name;
+                        resultElement.onclick = function() {
+                            map.setView([result.lat, result.lon], 15);
+                            L.marker([result.lat, result.lon]).addTo(map)
+                              .bindPopup(result.display_name)
+                              .openPopup();
+                            resultsContainer.innerHTML = '';
+                        };
+                        resultsContainer.appendChild(resultElement);
+                    });
+                } else {
+                    resultsContainer.innerHTML = '<div class="search-result">Nessun risultato trovato.</div>';
+                }
+            })
+            .catch(error => console.error('Errore nel recupero dei dati: ', error));
+        }
+    </script>
+</body>
+</html>
